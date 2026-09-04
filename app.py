@@ -30,10 +30,20 @@ supabase = get_supabase()
 st.write("DEBUG: Supabase connection loaded")
 
 try:
-    test = supabase.table("food_records").select("id").limit(1).execute()
-    st.write("DEBUG: food_records table can be read")
+    test_record = {
+        "entry_date": "2026-09-04",
+        "food_description": "TEST",
+        "calories": 1,
+        "protein_g": 1,
+    }
+
+    test = supabase.table("food_records").insert(test_record).execute()
+
+    st.write("DEBUG: TEST INSERT WORKED")
+    st.write(test.data)
+
 except Exception as e:
-    st.write("DEBUG: food_records read error:", e)
+    st.write("DEBUG: TEST INSERT ERROR:", e)
 
 # -----------------------------
 # FREE FOOD DATABASE
