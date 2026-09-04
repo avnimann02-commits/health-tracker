@@ -27,6 +27,7 @@ def get_supabase():
 
 supabase = get_supabase()
 
+st.write("DEBUG: Supabase connection loaded")
 
 # -----------------------------
 # FREE FOOD DATABASE
