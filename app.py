@@ -1,16 +1,21 @@
-import json
 from datetime import date
+import re
 
 import pandas as pd
 import streamlit as st
-from openai import OpenAI
 from supabase import create_client
+
 
 st.set_page_config(
     page_title="Mamma's Happy Health Tracker",
     page_icon="💜",
     layout="centered",
 )
+
+
+# -----------------------------
+# SUPABASE CONNECTION
+# -----------------------------
 
 @st.cache_resource
 def get_supabase():
@@ -19,57 +24,105 @@ def get_supabase():
         st.secrets["SUPABASE_KEY"],
     )
 
-@st.cache_resource
-def get_openai():
-    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
 
 supabase = get_supabase()
-client = get_openai()
 
+
+# -----------------------------
+# FREE FOOD DATABASE
+# Calories and protein are
+# approximate per serving.
+# -----------------------------
+
+FOODS = {
+    "roti": {"calories": 100, "protein": 3},
+    "chapati": {"calories": 100, "protein": 3},
+    "paratha": {"calories": 180, "protein": 4},
+    "rice": {"calories": 200, "protein": 4},
+    "dal": {"calories": 180, "protein": 9},
+    "curd": {"calories": 100, "protein": 5},
+    "yogurt": {"calories": 100, "protein": 5},
+    "paneer": {"calories": 265, "protein": 18},
+    "milk": {"calories": 120, "protein": 6},
+    "bread": {"calories": 70, "protein": 3},
+    "banana": {"calories": 105, "protein": 1.3},
+    "apple": {"calories": 95, "protein": 0.5},
+    "mango": {"calories": 100, "protein": 1},
+    "egg": {"calories": 75, "protein": 6},
+    "chicken": {"calories": 240, "protein": 27},
+    "vegetables": {"calories": 120, "protein": 4},
+    "sabzi": {"calories": 120, "protein": 4},
+    "salad": {"calories": 50, "protein": 2},
+    "pickle": {"calories": 20, "protein": 0},
+    "tea": {"calories": 60, "protein": 2},
+    "coffee": {"calories": 60, "protein": 2},
+}
+
+
+# -----------------------------
+# FOOD CALCULATOR
+# -----------------------------
 
 def analyze_food(food_description):
-    prompt = f"""
-You are a careful nutrition-estimation assistant.
+    text = food_description.lower()
 
-Estimate the calories and protein for the food described below.
+    total_calories = 0
+    total_protein = 0
+    found_foods = []
 
-Food eaten:
-{food_description}
+    for food, nutrition in FOODS.items():
 
-Important:
-- Use reasonable typical Indian serving sizes when quantities are not given.
-- If quantities are given, use them.
-- Give an estimate, not a laboratory measurement.
-- If something is unclear, make a reasonable assumption and mention it.
-- Do not encourage crash dieting or extremely low calorie intake.
+        if food in text:
 
-Return ONLY valid JSON in exactly this format:
+            # Look for a number immediately before the food.
+            pattern = rf"(\d+(?:\.\d+)?)\s*(?:x\s*)?{re.escape(food)}"
+            match = re.search(pattern, text)
 
-{{
-  "calories": number,
-  "protein_g": number,
-  "summary": "short explanation",
-  "assumptions": "important assumptions"
-}}
-"""
+            if match:
+                quantity = float(match.group(1))
+            else:
+                quantity = 1
 
-    response = client.responses.create(
-        model="gpt-5-mini",
-        input=prompt,
+            total_calories += nutrition["calories"] * quantity
+            total_protein += nutrition["protein"] * quantity
+
+            found_foods.append(
+                f"{quantity:g} × {food}"
+            )
+
+    if not found_foods:
+        raise ValueError(
+            "I couldn't recognize any foods in that description. "
+            "Try foods such as roti, rice, dal, curd, paneer, "
+            "banana, apple, mango, milk, bread, egg, or vegetables."
+        )
+
+    summary = "Recognized: " + ", ".join(found_foods)
+
+    assumptions = (
+        "Values are approximate and use the app's built-in "
+        "serving estimates."
     )
 
-    text = response.output_text.strip()
+    return {
+        "calories": total_calories,
+        "protein_g": total_protein,
+        "summary": summary,
+        "assumptions": assumptions,
+    }
 
-    if text.startswith("```"):
-        text = text.replace("```json", "").replace("```", "").strip()
 
-    return json.loads(text)
-
+# -----------------------------
+# SAVE RECORD
+# -----------------------------
 
 def save_record(record):
     supabase.table("food_records").insert(record).execute()
 
+
+# -----------------------------
+# LOAD HISTORY
+# -----------------------------
 
 def load_history():
     response = (
@@ -79,8 +132,13 @@ def load_history():
         .order("entry_date", desc=True)
         .execute()
     )
+
     return response.data or []
 
+
+# -----------------------------
+# APP UI
+# -----------------------------
 
 st.title("💜 Mamma's Happy Health Tracker")
 
@@ -89,29 +147,33 @@ today = date.today()
 st.subheader(today.strftime("%A, %d %B %Y"))
 
 st.write(
-    "Type what Mumma ate today. The app will estimate calories "
-    "and protein automatically."
+    "Type what Mumma ate today. The app will estimate "
+    "calories and protein using its free built-in food database."
 )
+
 
 food = st.text_area(
     "🍽️ What did Mumma eat today?",
     placeholder=(
-        "Example: Breakfast - 2 parathas and curd. "
-        "Lunch - dal, rice and salad. "
-        "Snack - mango. Dinner - 2 rotis and paneer."
+        "Example: 2 roti, 1 bowl dal, 1 mango, "
+        "1 cup curd"
     ),
     height=150,
 )
 
+
 if st.button("✨ Calculate & Save", use_container_width=True):
 
     if not food.strip():
+
         st.warning("Please describe what Mumma ate first.")
 
     else:
-        with st.spinner("🧠 Calculating nutrition..."):
+
+        with st.spinner("🧮 Calculating nutrition..."):
 
             try:
+
                 result = analyze_food(food)
 
                 calories = float(result["calories"])
@@ -149,21 +211,30 @@ if st.button("✨ Calculate & Save", use_container_width=True):
 
                 if result.get("assumptions"):
                     st.caption(
-                        "Assumptions: " + result["assumptions"]
+                        "Assumptions: "
+                        + result["assumptions"]
                     )
 
             except Exception as e:
+
                 st.error(
                     "Something went wrong while calculating or saving."
                 )
+
                 st.caption(str(e))
 
+
+# -----------------------------
+# HISTORY
+# -----------------------------
 
 st.divider()
 
 st.header("📚 Your History")
 
+
 try:
+
     history = load_history()
 
     if history:
@@ -171,7 +242,11 @@ try:
         df = pd.DataFrame(history)
 
         if "entry_date" in df.columns:
-            df["entry_date"] = pd.to_datetime(df["entry_date"])
+
+            df["entry_date"] = pd.to_datetime(
+                df["entry_date"]
+            )
+
             df = df.sort_values(
                 "entry_date",
                 ascending=False
@@ -204,12 +279,14 @@ try:
         col1, col2 = st.columns(2)
 
         with col1:
+
             st.metric(
                 "Days recorded",
                 len(df)
             )
 
         with col2:
+
             st.metric(
                 "Average calories",
                 f"{average_calories:.0f} kcal"
@@ -221,9 +298,12 @@ try:
         )
 
     else:
+
         st.info("No saved food records yet.")
 
+
 except Exception as e:
+
     st.error("Couldn't load the saved history.")
     st.caption(str(e))
 
@@ -231,5 +311,6 @@ except Exception as e:
 st.divider()
 
 st.caption(
-    "Nutrition values are estimates and should not be treated as medical advice."
+    "Nutrition values are estimates and should not be treated "
+    "as medical advice."
 )
