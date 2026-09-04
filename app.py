@@ -12,6 +12,8 @@ st.set_page_config(
     layout="centered",
 )
 
+st.success("NEW CODE IS RUNNING")
+
 @st.cache_resource
 def get_supabase():
     return create_client(
