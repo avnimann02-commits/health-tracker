@@ -29,6 +29,12 @@ supabase = get_supabase()
 
 st.write("DEBUG: Supabase connection loaded")
 
+try:
+    test = supabase.rpc("version").execute()
+    st.write("DEBUG: Database connection works")
+except Exception as e:
+    st.write("DEBUG: Database test error:", e)
+
 # -----------------------------
 # FREE FOOD DATABASE
 # Calories and protein are
