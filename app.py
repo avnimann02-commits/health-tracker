@@ -30,10 +30,10 @@ supabase = get_supabase()
 st.write("DEBUG: Supabase connection loaded")
 
 try:
-    test = supabase.rpc("version").execute()
-    st.write("DEBUG: Database connection works")
+    test = supabase.table("food_records").select("id").limit(1).execute()
+    st.write("DEBUG: food_records table can be read")
 except Exception as e:
-    st.write("DEBUG: Database test error:", e)
+    st.write("DEBUG: food_records read error:", e)
 
 # -----------------------------
 # FREE FOOD DATABASE
