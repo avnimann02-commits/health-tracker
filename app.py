@@ -29,21 +29,19 @@ supabase = get_supabase()
 
 st.write("DEBUG: Supabase connection loaded")
 
+import base64
+import json
+
 try:
-    test_record = {
-        "entry_date": "2026-09-04",
-        "food_description": "TEST",
-        "calories": 1,
-        "protein_g": 1,
-    }
-
-    test = supabase.table("food_records").insert(test_record).execute()
-
-    st.write("DEBUG: TEST INSERT WORKED")
-    st.write(test.data)
-
+    token = st.secrets["SUPABASE_KEY"]
+    payload = token.split(".")[1]
+    payload += "=" * (-len(payload) % 4)
+    decoded = json.loads(
+        base64.urlsafe_b64decode(payload)
+    )
+    st.write("DEBUG: Supabase key role:", decoded.get("role"))
 except Exception as e:
-    st.write("DEBUG: TEST INSERT ERROR:", e)
+    st.write("DEBUG: Could not inspect key role:", e)
 
 # -----------------------------
 # FREE FOOD DATABASE
