@@ -27,22 +27,6 @@ def get_supabase():
 
 supabase = get_supabase()
 
-st.write("DEBUG: Supabase connection loaded")
-
-import base64
-import json
-
-try:
-    token = st.secrets["SUPABASE_KEY"]
-    payload = token.split(".")[1]
-    payload += "=" * (-len(payload) % 4)
-    decoded = json.loads(
-        base64.urlsafe_b64decode(payload)
-    )
-    st.write("DEBUG: Supabase key role:", decoded.get("role"))
-except Exception as e:
-    st.write("DEBUG: Could not inspect key role:", e)
-
 # -----------------------------
 # FREE FOOD DATABASE
 # Calories and protein are
